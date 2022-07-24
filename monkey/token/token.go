@@ -40,7 +40,7 @@ const (
 	ELSE   = "else"
 	RETURN = "return"
 
-	EQUAL     = "="
+	EQUAL     = "=="
 	NOT_EQUAL = "!="
 )
 

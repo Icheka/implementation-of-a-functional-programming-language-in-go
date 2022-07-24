@@ -2,6 +2,7 @@ package errors
 
 import (
 	"fmt"
+	"monkey/object"
 	"monkey/token"
 )
 
@@ -15,4 +16,8 @@ func CouldNotParseInteger(value string) string {
 
 func NoPrefixParseError(t token.TokenType) string {
 	return fmt.Sprintf("No prefix parse function for %s found", t)
+}
+
+func NewError(format string, a ...interface{}) *object.Error {
+	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
