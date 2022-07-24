@@ -21,6 +21,7 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
+	INDEX
 )
 
 var precedences = map[token.TokenType]int{
@@ -36,7 +37,8 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 
-	token.LPAREN: CALL,
+	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 type Parser struct {
@@ -64,6 +66,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
+	p.registerPrefix(token.STRING, p.parseStringLiteral)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 
 	p.infixParseFunctions = make(map[token.TokenType]infixParseFunction)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -75,11 +79,59 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.L_THAN, p.parseInfixExpression)
 	p.registerInfix(token.G_THAN, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	p.advanceToNextToken()
 	p.advanceToNextToken()
 
 	return p
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	expr := &ast.IndexExpression{
+		Token: p.currentToken,
+		Left:  left,
+	}
+
+	p.advanceToNextToken()
+
+	expr.Index = p.parseExpression(LOWEST)
+
+	if !p.expectNextTokenToBe(token.RBRACKET) {
+		return nil
+	}
+
+	return expr
+}
+
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	return &ast.ArrayLiteral{
+		Token:    p.currentToken,
+		Elements: p.parseExpressionList(token.RBRACKET),
+	}
+}
+
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.nextToken.Type == end {
+		p.advanceToNextToken()
+		return list
+	}
+
+	p.advanceToNextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.nextToken.Type == token.COMMA {
+		p.advanceToNextToken()
+		p.advanceToNextToken()
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectNextTokenToBe(end) {
+		return nil
+	}
+	return list
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, parseFunction prefixParseFunction) {
@@ -108,6 +160,13 @@ func (p *Parser) ParseProgram() *ast.Program {
 	}
 
 	return program
+}
+
+func (p *Parser) parseStringLiteral() ast.Expression {
+	return &ast.StringLiteral{
+		Token: p.currentToken,
+		Value: p.currentToken.Value,
+	}
 }
 
 func (p *Parser) parseStatement() ast.Statement {
@@ -368,28 +427,7 @@ func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseCallArguments() []ast.Expression {
-	args := []ast.Expression{}
-
-	if p.nextToken.Type == token.RPAREN {
-		p.advanceToNextToken()
-		return args
-	}
-
-	p.advanceToNextToken()
-
-	args = append(args, p.parseExpression(LOWEST))
-
-	for p.nextToken.Type == token.COMMA {
-		p.advanceToNextToken()
-		p.advanceToNextToken()
-		args = append(args, p.parseExpression(LOWEST))
-	}
-
-	if !p.expectNextTokenToBe(token.RPAREN) {
-		return nil
-	}
-
-	return args
+	return p.parseExpressionList(token.RPAREN)
 }
 
 func (p *Parser) expectCurrentTokenToBe(token token.TokenType) bool {

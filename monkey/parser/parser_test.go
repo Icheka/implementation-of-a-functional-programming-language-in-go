@@ -10,6 +10,67 @@ import (
 	"testing"
 )
 
+func TestParsingIndexExpressions(t *testing.T) {
+	input := "arr[0 * 1]"
+
+	p := New(lexer.New(input))
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	indexExpr, ok := stmt.Expression.(*ast.IndexExpression)
+	if !ok {
+		t.Fatalf("expr is not *ast.IndexExpression, got %T", stmt.Expression)
+	}
+
+	if !testIdentifier(t, indexExpr.Left, "arr") {
+		return
+	}
+	if !testInfixExpression(t, indexExpr.Index, 0, "*", 1) {
+		return
+	}
+}
+
+func TestArrayLiteral(t *testing.T) {
+	input := `[1, 1 * 8, "ABC"]`
+
+	p := New(lexer.New(input))
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	array, ok := stmt.Expression.(*ast.ArrayLiteral)
+	if !ok {
+		t.Fatalf("expr is not ast.ArrayLiteral, got %T", stmt.Expression)
+	}
+
+	if len(array.Elements) != 3 {
+		t.Fatalf("len(array.Elements) not 3, got %d", len(array.Elements))
+	}
+
+	testIntegerLiteral(t, array.Elements[0], 1)
+	testInfixExpression(t, array.Elements[1], 1, "*", 8)
+}
+
+func TestStringLiteralExpression(t *testing.T) {
+	input := `"hello world"`
+
+	p := New(lexer.New(input))
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	literal, ok := stmt.Expression.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("stmt.Expression is not an *ast.StringLiteral, got %T", stmt.Expression)
+	}
+
+	if literal.Value != "hello world" {
+		t.Errorf("literal.Value not %q, got %q", "hello world", literal.Value)
+	}
+
+}
+
 func TestLetStatements(t *testing.T) {
 	input := `
 	let x = 5;
@@ -315,10 +376,18 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{"2 / (5 + 5)", "(2 / (5 + 5))"},
 		{"-(2 + 2)", "(-(2 + 2))"},
 		{"!(true == true)", "(!(true == true))"},
-
 		{"a + add(b * c) + d", "((a + add((b * c))) + d)"},
 		{"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"},
 		{"add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"},
+		{"add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"},
+		{
+			"a * [1, 2, 3, 4][b * c] * d",
+			"((a * ([1, 2, 3, 4][(b * c)])) * d)",
+		},
+		{
+			"add(a * b[2], b[1], 2 * [1, 2][1])",
+			"add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+		},
 	}
 
 	for _, tt := range tests {

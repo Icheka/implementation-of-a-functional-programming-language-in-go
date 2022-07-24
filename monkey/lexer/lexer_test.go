@@ -10,7 +10,7 @@ func TestNextToken(t *testing.T) {
 	input := `let five = 5;
 	let ten = 10;
 	
-	let add = fn(x, y) {
+	let add = function(x, y) {
 		x + y;
 	};
 	
@@ -19,7 +19,10 @@ func TestNextToken(t *testing.T) {
 	5 < 10 > 5;
 	true false if else return;
 	10 == 10;
-	10 != 9;`
+	10 != 9;
+	"foorbar"
+	"icheka ozuru"
+	[1, 2]`
 
 	tests := []struct {
 		expectedType  token.TokenType
@@ -38,7 +41,7 @@ func TestNextToken(t *testing.T) {
 		{token.LET, "let"},
 		{token.IDENT, "add"},
 		{token.ASSIGN, "="},
-		{token.FUNCTION, "fn"},
+		{token.FUNCTION, "function"},
 		{token.LPAREN, "("},
 		{token.IDENT, "x"},
 		{token.COMMA, ","},
@@ -87,6 +90,13 @@ func TestNextToken(t *testing.T) {
 		{token.NOT_EQUAL, "!="},
 		{token.INT, "9"},
 		{token.SEMICOLON, ";"},
+		{token.STRING, "foobar"},
+		{token.STRING, "icheka ozuru"},
+		{token.LBRACKET, "["},
+		{token.INT, "1"},
+		{token.COMMA, ","},
+		{token.INT, "2"},
+		{token.RBRACKET, "]"},
 	}
 
 	// a new lexer instance

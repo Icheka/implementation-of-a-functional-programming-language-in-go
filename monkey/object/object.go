@@ -22,7 +22,35 @@ const (
 	RETURN_VALUE_OBJECT = "RETURN_VALUE"
 	ERROR_OBJECT        = "ERROR"
 	FUNCTION_OBJECT     = "FUNCTION"
+	STRING_OBJECT       = "STRING"
+	BUILTIN_OBJECT      = "BUILTIN"
+	ARRAY_OBJECT        = "ARRAY"
 )
+
+type Array struct {
+	Elements []Object
+}
+
+func (a *Array) Type() ObjectType { return ARRAY_OBJECT }
+func (a *Array) Inspect() string {
+	var str bytes.Buffer
+
+	elements := []string{}
+	for _, e := range a.Elements {
+		elements = append(elements, e.Inspect())
+	}
+
+	str.WriteString("[")
+	str.WriteString(strings.Join(elements, ", "))
+	str.WriteString("]")
+
+	return str.String()
+}
+
+type String struct{ Value string }
+
+func (s *String) Type() ObjectType { return STRING_OBJECT }
+func (s *String) Inspect() string  { return s.Value }
 
 type Integer struct {
 	Value int64
@@ -83,3 +111,11 @@ func (f *Function) Inspect() string {
 
 	return str.String()
 }
+
+type BuiltinFunction func(args ...Object) Object
+type Builtin struct {
+	Function BuiltinFunction
+}
+
+func (b *Builtin) Type() ObjectType { return BUILTIN_OBJECT }
+func (b *Builtin) Inspect() string  { return "built-in function" }

@@ -74,6 +74,13 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.G_THAN, l.character)
 	case 0:
 		tok = newToken(token.EOF, l.character)
+	case '"':
+		tok.Type = token.STRING
+		tok.Value = l.readString()
+	case '[':
+		tok = newToken(token.LBRACKET, l.character)
+	case ']':
+		tok = newToken(token.RBRACKET, l.character)
 	default:
 		if isLetter(l.character) {
 			tok.Value = l.readIdentifier()
@@ -91,6 +98,17 @@ func (l *Lexer) NextToken() token.Token {
 
 	l.readCharacter()
 	return tok
+}
+
+func (l *Lexer) readString() string {
+	pos := l.nextIndex
+	for {
+		l.readCharacter()
+		if l.character == '"' || l.character == 0 {
+			break
+		}
+	}
+	return l.input[pos:l.currentIndex]
 }
 
 func (l *Lexer) peakNextCharacter() byte {

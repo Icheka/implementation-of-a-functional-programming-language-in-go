@@ -7,6 +7,99 @@ import (
 	"testing"
 )
 
+func TestArrayIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"[1,2,3][0]", 1},
+		{"[1, 2 * 0][1]", 0},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		if integer, ok := tt.expected.(int); ok {
+			testIntegerObject(t, evaluated, int64(integer))
+			return
+		}
+		testNullObject(t, evaluated)
+	}
+}
+
+func TestArrayLiterals(t *testing.T) {
+	input := "[1, 2 * 1, 3 + 0]"
+
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.Array)
+	if !ok {
+		t.Fatalf("object is not an Array, got %T (%+v)", evaluated, evaluated)
+	}
+
+	if len(result.Elements) != 3 {
+		t.Fatalf("array has wrong number of elements, got %d", len(result.Elements))
+	}
+
+	testIntegerObject(t, result.Elements[0], 1)
+	testIntegerObject(t, result.Elements[1], 2)
+	testIntegerObject(t, result.Elements[2], 3)
+}
+
+func TestBuiltinFunctions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`len("")`, 0},
+		{`len("icheka")`, 6},
+		{`len(true)`, "argument to `len` not supported, got BOOLEAN"},
+		{`len("icheka", "ozuru")`, "wrong number of arguments to `len`. Expects 1, got 2"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testIntegerObject(t, evaluated, int64(expected))
+		case string:
+			err, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error, got %T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if err.Message != expected {
+				t.Errorf("wrong error message, expected %q, got %q", tt.expected, err.Message)
+			}
+		}
+	}
+}
+
+func TestStringConcatenation(t *testing.T) {
+	input := `"Icheka" + " " + "Ozuru"`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String, got %T (%+v)", evaluated, evaluated)
+	}
+	if str.Value != "Icheka Ozuru" {
+		t.Errorf("String has wrong value, got %q", str.Value)
+	}
+}
+
+func TestStringLiteral(t *testing.T) {
+	input := `"icheka ozuru"`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String, got %T (%+v)", evaluated, evaluated)
+	}
+	if str.Value != "icheka ozuru" {
+		t.Errorf("String has wrong value, expected %q, got %q", "icheka ozuru", str.Value)
+	}
+}
+
 func TestEvalIntegerExpression(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -135,7 +228,7 @@ if (10 > 1) {
 		},
 		{
 			`
-let f = fn(x) {
+let f = function(x) {
   return x;
   x + 10;
 };
@@ -144,7 +237,7 @@ f(10);`,
 		},
 		{
 			`
-let f = fn(x) {
+let f = function(x) {
    let result = x + 10;
    return result;
    return 10;
@@ -209,6 +302,10 @@ if (10 > 1) {
 			"foobar",
 			"identifier not found: foobar",
 		},
+		{
+			`"A" - "B"`,
+			"unknown operator: STRING - STRING",
+		},
 	}
 
 	for _, tt := range tests {
@@ -245,27 +342,27 @@ func TestLetStatements(t *testing.T) {
 }
 
 func TestFunctionObject(t *testing.T) {
-	input := "fn(x) { x + 2; };"
+	input := "function(x) { x + 2; };"
 
 	evaluated := testEval(input)
-	fn, ok := evaluated.(*object.Function)
+	function, ok := evaluated.(*object.Function)
 	if !ok {
 		t.Fatalf("object is not Function. got=%T (%+v)", evaluated, evaluated)
 	}
 
-	if len(fn.Parameters) != 1 {
+	if len(function.Parameters) != 1 {
 		t.Fatalf("function has wrong parameters. Parameters=%+v",
-			fn.Parameters)
+			function.Parameters)
 	}
 
-	if fn.Parameters[0].String() != "x" {
-		t.Fatalf("parameter is not 'x'. got=%q", fn.Parameters[0])
+	if function.Parameters[0].String() != "x" {
+		t.Fatalf("parameter is not 'x'. got=%q", function.Parameters[0])
 	}
 
 	expectedBody := "(x + 2)"
 
-	if fn.Body.String() != expectedBody {
-		t.Fatalf("body is not %q. got=%q", expectedBody, fn.Body.String())
+	if function.Body.String() != expectedBody {
+		t.Fatalf("body is not %q. got=%q", expectedBody, function.Body.String())
 	}
 }
 
@@ -274,12 +371,12 @@ func TestFunctionApplication(t *testing.T) {
 		input    string
 		expected int64
 	}{
-		{"let identity = fn(x) { x; }; identity(5);", 5},
-		{"let identity = fn(x) { return x; }; identity(5);", 5},
-		{"let double = fn(x) { x * 2; }; double(5);", 10},
-		{"let add = fn(x, y) { x + y; }; add(5, 5);", 10},
-		{"let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
-		{"fn(x) { x; }(5)", 5},
+		{"let identity = function(x) { x; }; identity(5);", 5},
+		{"let identity = function(x) { return x; }; identity(5);", 5},
+		{"let double = function(x) { x * 2; }; double(5);", 10},
+		{"let add = function(x, y) { x + y; }; add(5, 5);", 10},
+		{"let add = function(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
+		{"function(x) { x; }(5)", 5},
 	}
 
 	for _, tt := range tests {
@@ -293,7 +390,7 @@ let first = 10;
 let second = 10;
 let third = 10;
 
-let ourFunction = fn(first) {
+let ourFunction = function(first) {
   let second = 20;
 
   first + second + third;
